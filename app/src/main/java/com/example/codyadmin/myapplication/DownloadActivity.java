@@ -2,25 +2,38 @@ package com.example.codyadmin.myapplication;
 import android.os.AsyncTask;
 import android.util.Log;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.util.ArrayList;
 
 /**
- * @author lynn
+ * Cody Lynch And Anthony Wiegratz
  *
  */
 public class DownloadActivity extends AsyncTask<String, Void, String> {
     private static final int READ_THIS_AMOUNT = 8096;
     private static final String TAG = "DownloadTask";
     MainActivity myActivity;
-
+    private ArrayList<Pet> myList = new ArrayList<Pet>();
+    JSONObject myJO;
+    JSONArray myJA;
+    JSONObject jUrl;
+    ArrayList<String> names = new ArrayList<String>();
     // 1 second
     private static final int TIMEOUT = 1000;
     private String myQuery = "";
+
 
     DownloadActivity(MainActivity activity) {
         attach(activity);
@@ -56,65 +69,75 @@ public class DownloadActivity extends AsyncTask<String, Void, String> {
 
     @Override
     protected String doInBackground(String... params) {
-        // site we want to connect to
-        String myURL = params[0];
+       myJO = getJS();
 
-        try {
-            URL url = new URL(myURL + myQuery);
+        try{
+            myJA = myJO.getJSONArray("pets");
+            for(int i = 0; i<myJA.length(); i++){
+                myJO = myJA.getJSONObject(i);
+                Pet pet = new Pet();
+                pet.setName(myJO.optString("name"));
+           ;
+               pet.setFile(myJO.optString("file"));
+                myList.add(pet);
+                names.add(myJO.optString("name"));
+            }
+        }
+        catch(Exception e){
+            Log.e("Error", e.getMessage());
+            e.printStackTrace();
+        }
 
-            // this does no network IO
+      return null;
+    }
+
+    private JSONObject getJS(){
+        String json = "";
+        BufferedReader reader = null;
+
+        try{
+            String mUrl = myActivity.getUrl();
+            URL url = new URL(mUrl);
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-
-            // can further configure connection before getting data
-            // cannot do this after connected
             connection.setRequestMethod("GET");
             connection.setReadTimeout(TIMEOUT);
             connection.setConnectTimeout(TIMEOUT);
             connection.setRequestProperty("Accept-Charset", "UTF-8");
-            // this opens a connection, then sends GET & headers
 
-            // wrap in finally so that stream bis is sure to close
-            // and we disconnect the HttpURLConnection
-            BufferedReader in = null;
-            try {
+            try{
                 connection.connect();
-
-                // lets see what we got make sure its one of
-                // the 200 codes (there can be 100 of them
-                // http_status / 100 != 2 does integer div any 200 code will = 2
-                int statusCode = connection.getResponseCode();
-                if (statusCode / 100 != 2) {
-                    Log.e(TAG, "Error-connection.getResponseCode returned "
-                            + Integer.toString(statusCode));
-                    return null;
-                }
-
-                in = new BufferedReader(new InputStreamReader(connection.getInputStream()), READ_THIS_AMOUNT);
-
-                // the following buffer will grow as needed
-                String myData;
+                reader = new BufferedReader(new InputStreamReader(connection.getInputStream()), READ_THIS_AMOUNT);
                 StringBuffer sb = new StringBuffer();
-
-                while ((myData = in.readLine()) != null) {
-                    sb.append(myData);
+                String line = "";
+                while((line = reader.readLine()) != null){
+                    sb.append(line + "\n");
+                    System.out.println(line);
                 }
-                return sb.toString();
-
-            } finally {
-                // close resource no matter what exception occurs
-                in.close();
+                json = sb.toString();
+            }
+            finally {
+                reader.close();
                 connection.disconnect();
             }
-        } catch (Exception exc) {
-            exc.printStackTrace();
-            return null;
-        }
-    }
 
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        try{
+            jUrl = new JSONObject(json);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+        return jUrl;
+    }
     @Override
     protected void onPostExecute(String result) {
         if (myActivity != null) {
-            myActivity.doSpinner(result);
+            myActivity.doSpinner(names);
+            myActivity.doToast("apples");
+
         }
     }
 
